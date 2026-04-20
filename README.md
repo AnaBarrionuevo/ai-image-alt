@@ -1,36 +1,87 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI Image Alt
 
-## Getting Started
+Next.js app that:
 
-First, run the development server:
+1. reads image assets from Contentful (CDA),
+2. generates alt-style descriptions with OpenAI vision,
+3. writes descriptions back to Contentful assets via CMA.
+
+## Prerequisites
+
+- Node.js 20+
+- A Contentful space with image assets
+- Contentful CDA + CMA tokens
+- OpenAI API key
+
+## Environment Setup
+
+Create a local env file from the template:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Set these values in `.env.local`:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `CONTENTFUL_SPACE_ID`
+- `CONTENTFUL_ENVIRONMENT` (usually `master`)
+- `CONTENTFUL_DELIVERY_ACCESS_TOKEN`
+- `CONTENTFUL_MANAGEMENT_ACCESS_TOKEN`
+- `CONTENTFUL_DEFAULT_LOCALE` (usually `en-US`)
+- `CONTENTFUL_PUBLISH_AFTER_UPDATE` (`true` or `false`)
+- `OPENAI_API_KEY`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Important: if CMA calls return `OrganizationAccessGrantRequired` / `401`, go to Contentful and explicitly authorize the CMA token for the organization/space.
 
-## Learn More
+## Run Locally
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm install
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+App runs at [http://localhost:3000](http://localhost:3000).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## API Endpoints
 
-## Deploy on Vercel
+- `GET /api/read-all`
+  - Reads all image assets from CDA and logs `{ id, url }`.
+- `POST /api/generate-descriptions`
+  - Generates descriptions from image URLs.
+  - Optional body: `{ "limit": 3 }`
+- `POST /api/push-descriptions`
+  - Pushes provided descriptions to Contentful assets.
+  - Body shape:
+    - `{ "items": [{ "id": "...", "url": "...", "description": "..." }], "locale": "en-US", "publish": true }`
+- `POST /api/run-pipeline`
+  - Runs read -> generate -> push in one call.
+  - Optional body: `{ "limit": 3, "locale": "en-US", "publish": true }`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## CLI Commands
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Generate descriptions only:
+
+```bash
+npm run generate:descriptions -- --limit 3
+```
+
+- Run full pipeline (read -> generate -> push):
+
+```bash
+npm run pipeline -- --limit 3
+```
+
+Both scripts load `.env.local` automatically.
+
+## Logs
+
+Pipeline logs include:
+
+- `[pipeline:read]` successful read summary
+- `[pipeline:generate]` one line per generated description
+- `[pipeline:push]` successful Contentful push summary
+
+## Security Notes
+
+- Never commit `.env.local`.
+- Rotate tokens immediately if any secret is accidentally exposed.
