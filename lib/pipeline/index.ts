@@ -13,3 +13,7 @@ export {
   runFullPipeline,
   type RunFullPipelineOptions,
 } from "./run-full-pipeline";
+export {
+  processPublishedAssetFromWebhook,
+  type ProcessPublishedAssetFromWebhookResult,
+} from "./process-published-asset-from-webhook";

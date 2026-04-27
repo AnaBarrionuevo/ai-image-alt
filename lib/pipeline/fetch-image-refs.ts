@@ -1,6 +1,7 @@
 import {
   createCdaClient,
   getAllImageAssets,
+  getAssetDescription,
   getAssetFileUrl,
 } from "@/lib/contentful/cda";
 
@@ -14,7 +15,13 @@ export async function fetchPublishedImageRefs(): Promise<ImageRef[]> {
 
   for (const asset of assets) {
     const url = getAssetFileUrl(asset);
-    if (url) refs.push({ id: asset.sys.id, url });
+    if (url) {
+      refs.push({
+        id: asset.sys.id,
+        url,
+        existingDescription: getAssetDescription(asset),
+      });
+    }
   }
 
   console.log(

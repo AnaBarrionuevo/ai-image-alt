@@ -1,12 +1,9 @@
-import { createClient, type PlainClientAPI } from "contentful-management";
-
-export function createCmaClient(): PlainClientAPI {
-  const accessToken = process.env.CONTENTFUL_MANAGEMENT_ACCESS_TOKEN;
-  if (!accessToken) {
-    throw new Error("CONTENTFUL_MANAGEMENT_ACCESS_TOKEN is not set");
-  }
-  return createClient({ accessToken });
-}
+import {
+  cmaGetAsset,
+  cmaPublishAsset,
+  cmaUpdateAsset,
+} from "@/lib/contentful/cma-fetch";
+import { withCmaThrottledRequest } from "@/lib/contentful/cma-rate-limit";
 
 export function getSpaceEnvironmentParams(): {
   spaceId: string;
@@ -31,7 +28,8 @@ export type UpdateAssetDescriptionOptions = {
 };
 
 /**
- * Sets `fields.description[locale]` on a media asset and updates via CMA (plain client).
+ * Sets `fields.description[locale]` on a media asset and updates via CMA.
+ * Uses native fetch (undici) — no axios, no EventEmitter listener buildup.
  */
 export async function updateAssetDescription(
   assetId: string,
@@ -39,23 +37,19 @@ export async function updateAssetDescription(
   locale: string,
   options?: UpdateAssetDescriptionOptions,
 ): Promise<void> {
-  const client = createCmaClient();
   const { spaceId, environmentId } = getSpaceEnvironmentParams();
 
-  const asset = await client.asset.get({
-    spaceId,
-    environmentId,
-    assetId,
-  });
+  const asset = await withCmaThrottledRequest(`asset.get(${assetId})`, () =>
+    cmaGetAsset(spaceId, environmentId, assetId),
+  );
 
   if (!asset.fields.description) {
     asset.fields.description = {};
   }
   asset.fields.description[locale] = description;
 
-  const updated = await client.asset.update(
-    { spaceId, environmentId, assetId },
-    asset,
+  const updated = await withCmaThrottledRequest(`asset.update(${assetId})`, () =>
+    cmaUpdateAsset(spaceId, environmentId, assetId, asset),
   );
 
   const envPublish = process.env.CONTENTFUL_PUBLISH_AFTER_UPDATE;
@@ -63,9 +57,8 @@ export async function updateAssetDescription(
     options?.publish ?? (envPublish === undefined ? true : envPublish !== "false");
 
   if (shouldPublish) {
-    await client.asset.publish(
-      { spaceId, environmentId, assetId },
-      updated,
+    await withCmaThrottledRequest(`asset.publish(${assetId})`, () =>
+      cmaPublishAsset(spaceId, environmentId, assetId, updated.sys.version),
     );
   }
 }

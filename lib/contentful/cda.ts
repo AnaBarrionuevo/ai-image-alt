@@ -18,6 +18,30 @@ function normalizeAssetUrl(url: string): string {
   return url.startsWith("//") ? `https:${url}` : url;
 }
 
+/** First available description text for an asset (any locale). */
+export function getAssetDescription(asset: Asset): string | null {
+  const descriptionField = asset.fields.description;
+  if (!descriptionField) return null;
+
+  // CDA SDK with default locale resolution returns a plain string.
+  if (typeof descriptionField === "string") {
+    const trimmed = descriptionField.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  // CDA SDK with locale:"*" returns a per-locale map { "en-US": "..." }.
+  if (typeof descriptionField === "object") {
+    for (const value of Object.values(descriptionField)) {
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (trimmed.length > 0) return trimmed;
+      }
+    }
+  }
+
+  return null;
+}
+
 /**
  * Resolves the file URL for an asset. The CDA can return `fields.file` either
  * as a flat {@link AssetFile} (default locale) or as a per-locale map.

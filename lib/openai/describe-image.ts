@@ -11,7 +11,7 @@ const DEFAULT_PROMPT =
 export async function describeImageFromUrl(
   imageUrl: string,
   options?: { prompt?: string },
-): Promise<string> {
+): Promise<{ description: string; tokensUsed: number | null }> {
   const openai = getOpenAI();
   const prompt = options?.prompt ?? DEFAULT_PROMPT;
 
@@ -29,9 +29,14 @@ export async function describeImageFromUrl(
     max_tokens: 400,
   });
 
-  const text = response.choices[0]?.message?.content?.trim();
-  if (!text) {
+  const description = response.choices[0]?.message?.content?.trim();
+  if (!description) {
     throw new Error("OpenAI returned an empty description");
   }
-  return text;
+  const tokensUsed =
+    typeof response.usage?.total_tokens === "number"
+      ? response.usage.total_tokens
+      : null;
+
+  return { description, tokensUsed };
 }

@@ -29,9 +29,18 @@ Set these values in `.env.local`:
 - `CONTENTFUL_MANAGEMENT_ACCESS_TOKEN`
 - `CONTENTFUL_DEFAULT_LOCALE` (usually `en-US`)
 - `CONTENTFUL_PUBLISH_AFTER_UPDATE` (`true` or `false`)
+- `CONTENTFUL_CMA_MAX_REQUESTS_PER_SECOND` (optional, default `6`) — throttle CMA calls per process to stay under the 7/s free cap
+- `CONTENTFUL_CMA_MAX_RETRIES` (optional, default `8`) — retries after CMA rate limits (429), 1s between attempts
+- `OPENAI_MAX_CONCURRENCY` (optional, default `3`) — parallel OpenAI image description requests
+- `CONTENTFUL_PUSH_MAX_CONCURRENCY` (optional, default `2`) — number of parallel push workers
+- `NODE_EVENT_MAX_LISTENERS` (optional, default `100`) — raises Node's listener warning threshold; needed because axios + follow-redirects briefly attaches per-request error listeners to keep-alive TLS sockets
 - `OPENAI_API_KEY`
 
 Important: if CMA calls return `OrganizationAccessGrantRequired` / `401`, go to Contentful and explicitly authorize the CMA token for the organization/space.
+
+By default the app **throttles** CMA calls (serialized + ~6 req/s) so you usually avoid **429**s. If you still hit the limit (e.g. another client writing at the same time), failed calls wait **1 second** and retry.
+
+**Bulk requests:** Contentful’s **Bulk Actions** API is mainly for batch workflows like publish/unpublish/validate — it does **not** replace per-asset `get` / `update` / `publish` when you need to change localized fields like `description`. The practical way to reduce retries is **throttling + fewer CMA calls** (e.g. skip `publish` while iterating, or upgrade for a higher CMA rate limit).
 
 ## Run Locally
 
@@ -56,6 +65,10 @@ App runs at [http://localhost:3000](http://localhost:3000).
 - `POST /api/run-pipeline`
   - Runs read -> generate -> push in one call.
   - Optional body: `{ "limit": 3, "locale": "en-US", "publish": true }`
+- `POST /api/webhooks/contentful`
+  - Called by a **Contentful webhook** when an asset changes. Verifies `CONTENTFUL_WEBHOOK_SECRET` via header `X-Webhook-Secret` (or `Authorization: Bearer …`).
+  - Expects the webhook **payload** to be an **Asset** JSON (`sys.type === "Asset"`). Triggers generate + push for that asset when it is a **published** image in CDA.
+  - Recommended trigger: **`ContentManagement.Asset.publish`** (CDA only sees published assets).
 
 ## CLI Commands
 
@@ -80,6 +93,7 @@ Pipeline logs include:
 - `[pipeline:read]` successful read summary
 - `[pipeline:generate]` one line per generated description
 - `[pipeline:push]` successful Contentful push summary
+- `[pipeline:cma]` rate-limit retries (when Contentful throttles)
 
 ## Security Notes
 
