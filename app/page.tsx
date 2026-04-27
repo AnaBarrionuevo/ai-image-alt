@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 type PipelineRow = {
   id: string;
@@ -10,75 +10,90 @@ type PipelineRow = {
   status: "generated" | "skipped";
 };
 
-type RunPipelineResponse = {
-  ok: boolean;
-  error?: string;
-  count?: number;
-  results?: PipelineRow[];
-};
+type StreamEvent =
+  | { type: "start"; total: number }
+  | { type: "asset"; data: PipelineRow }
+  | { type: "done"; total: number; generated: number; skipped: number }
+  | { type: "error"; message: string };
 
 export default function Home() {
   const [rows, setRows] = useState<PipelineRow[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [statusMessage, setStatusMessage] = useState("Idle");
   const [progress, setProgress] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
-  }, []);
-
-  const startVisualProgress = () => {
-    setProgress(8);
-    timerRef.current = setInterval(() => {
-      setProgress((prev) => Math.min(prev + Math.max(1, (95 - prev) * 0.12), 95));
-    }, 500);
-  };
-
-  const stopVisualProgress = (nextProgress: number) => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    setProgress(nextProgress);
-  };
+  const [total, setTotal] = useState(0);
 
   const runPipeline = async () => {
     if (isRunning) return;
 
     setIsRunning(true);
-    setStatusMessage("Running pipeline: read -> generate -> push...");
+    setStatusMessage("Starting...");
     setRows([]);
-    startVisualProgress();
+    setProgress(0);
+    setTotal(0);
+
+    let knownTotal = 0;
+    let received = 0;
 
     try {
-      const res = await fetch("/api/run-pipeline", {
+      const res = await fetch("/api/run-pipeline-stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
 
-      const data = (await res.json()) as RunPipelineResponse;
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error ?? "Pipeline request failed");
+      if (!res.ok || !res.body) {
+        throw new Error(`Request failed with status ${res.status}`);
       }
 
-      const nextRows = Array.isArray(data.results) ? data.results : [];
-      setRows(nextRows);
-      stopVisualProgress(100);
-      setStatusMessage(`Done. Processed ${nextRows.length} asset(s).`);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+
+          const event = JSON.parse(line) as StreamEvent;
+
+          if (event.type === "start") {
+            knownTotal = event.total;
+            setTotal(event.total);
+            setProgress(knownTotal === 0 ? 100 : 2);
+            setStatusMessage(`Processing ${event.total} asset(s)…`);
+          } else if (event.type === "asset") {
+            received++;
+            setRows((prev) => [...prev, event.data]);
+            const pct = knownTotal > 0 ? Math.round((received / knownTotal) * 95) : 0;
+            setProgress(pct);
+          } else if (event.type === "done") {
+            setProgress(100);
+            setStatusMessage(
+              `Done — ${event.total} asset(s): ${event.generated} generated, ${event.skipped} skipped.`,
+            );
+          } else if (event.type === "error") {
+            throw new Error(event.message);
+          }
+        }
+      }
     } catch (error) {
-      stopVisualProgress(0);
+      setProgress(0);
       const message = error instanceof Error ? error.message : "Unknown error";
       setStatusMessage(`Failed: ${message}`);
     } finally {
       setIsRunning(false);
     }
   };
+
+  const totalTokens = rows.reduce((sum, r) => sum + (r.tokensUsed ?? 0), 0);
+  const hasMissingTokens = rows.some((r) => r.tokensUsed === null && r.status === "generated");
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 px-4 py-8 md:px-8">
@@ -102,6 +117,15 @@ export default function Home() {
           <span className="text-sm text-zinc-600 dark:text-zinc-400">{statusMessage}</span>
         </div>
 
+        <div className="mb-2 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
+          <span>
+            {isRunning && total > 0
+              ? `${rows.length} / ${total} assets`
+              : "\u00a0"}
+          </span>
+          <span>{progress > 0 ? `${progress}%` : "\u00a0"}</span>
+        </div>
+
         <div className="mb-5 h-3 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
           <div
             className="h-full rounded-full bg-emerald-500 transition-all duration-300"
@@ -114,9 +138,9 @@ export default function Home() {
           <div className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
             Total tokens used:{" "}
             <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">
-              {rows.reduce((sum, r) => sum + (r.tokensUsed ?? 0), 0).toLocaleString()}
+              {totalTokens.toLocaleString()}
             </span>
-            {rows.some((r) => r.tokensUsed === null && r.status === "generated") && (
+            {hasMissingTokens && (
               <span className="ml-1 text-zinc-400">(some counts unavailable)</span>
             )}
           </div>
