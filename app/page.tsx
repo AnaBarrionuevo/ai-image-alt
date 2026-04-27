@@ -110,6 +110,18 @@ export default function Home() {
           />
         </div>
 
+        {rows.length > 0 && (
+          <div className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
+            Total tokens used:{" "}
+            <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">
+              {rows.reduce((sum, r) => sum + (r.tokensUsed ?? 0), 0).toLocaleString()}
+            </span>
+            {rows.some((r) => r.tokensUsed === null && r.status === "generated") && (
+              <span className="ml-1 text-zinc-400">(some counts unavailable)</span>
+            )}
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <table className="min-w-full border-collapse text-left text-sm">
             <thead>

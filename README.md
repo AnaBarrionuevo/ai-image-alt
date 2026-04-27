@@ -33,12 +33,15 @@ Set these values in `.env.local`:
 - `CONTENTFUL_CMA_MAX_RETRIES` (optional, default `8`) — retries after CMA rate limits (429), 1s between attempts
 - `OPENAI_MAX_CONCURRENCY` (optional, default `3`) — parallel OpenAI image description requests
 - `CONTENTFUL_PUSH_MAX_CONCURRENCY` (optional, default `2`) — number of parallel push workers
-- `NODE_EVENT_MAX_LISTENERS` (optional, default `100`) — raises Node's listener warning threshold; needed because axios + follow-redirects briefly attaches per-request error listeners to keep-alive TLS sockets
 - `OPENAI_API_KEY`
 
 Important: if CMA calls return `OrganizationAccessGrantRequired` / `401`, go to Contentful and explicitly authorize the CMA token for the organization/space.
 
 By default the app **throttles** CMA calls (serialized + ~6 req/s) so you usually avoid **429**s. If you still hit the limit (e.g. another client writing at the same time), failed calls wait **1 second** and retry.
+
+CMA requests use native `fetch` backed by an **undici** connection pool — no axios, no `EventEmitter` listener buildup regardless of how many assets you process.
+
+**Skip logic:** Assets that already have a description in Contentful are skipped automatically — no OpenAI call is made and their status shows as `skipped` in the dashboard.
 
 **Bulk requests:** Contentful’s **Bulk Actions** API is mainly for batch workflows like publish/unpublish/validate — it does **not** replace per-asset `get` / `update` / `publish` when you need to change localized fields like `description`. The practical way to reduce retries is **throttling + fewer CMA calls** (e.g. skip `publish` while iterating, or upgrade for a higher CMA rate limit).
 
@@ -91,7 +94,7 @@ Both scripts load `.env.local` automatically.
 Pipeline logs include:
 
 - `[pipeline:read]` successful read summary
-- `[pipeline:generate]` one line per generated description
+- `[pipeline:generate]` one line per asset — `status: "generated"` or `status: "skipped"` (already had a description)
 - `[pipeline:push]` successful Contentful push summary
 - `[pipeline:cma]` rate-limit retries (when Contentful throttles)
 
