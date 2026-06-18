@@ -27,6 +27,7 @@ jobs:
             one-paragraph PR comment summarising any correctness or security
             issues you find.
           claude_args: "--max-turns 5"
+          use_sticky_comment: true
           show_full_output: true
           settings: |
             {
