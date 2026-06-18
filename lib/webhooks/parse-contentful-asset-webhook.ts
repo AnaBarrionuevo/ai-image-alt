@@ -16,7 +16,7 @@ export function parseAssetIdFromWebhookBody(body: unknown): string | null {
 /** Whether this topic should trigger alt-text generation. */
 export function shouldProcessAssetWebhookTopic(topic: string): boolean {
   if (!topic) return true;
-  if (!topic.includes(".Asset.")) return false;
-  if (/\.Asset\.(unpublish|delete|archive)\b/.test(topic)) return false;
-  return true;
+  if (!topic.includes(".Asset.")) return true;
+  if (/\.Asset\.(unpublish|delete|archive)\b/.test(topic)) return true;
+  return false;
 }
