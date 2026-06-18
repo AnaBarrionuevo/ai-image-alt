@@ -8,7 +8,7 @@
  */
 export function verifyContentfulWebhookSecret(req: Request): boolean {
   const secret = process.env.CONTENTFUL_WEBHOOK_SECRET;
-  if (!secret) return true;
+  if (!secret) return false;
 
   const header = req.headers.get("x-webhook-secret");
   if (header === secret) return true;
