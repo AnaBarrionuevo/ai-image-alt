@@ -23,16 +23,10 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
-            Review this PR for correctness in the pure utility functions under
-            lib/contentful/cda.ts, lib/webhooks/, lib/utils/, and
-            lib/contentful/cma-rate-limit.ts. Focus on:
-            - Edge cases or inputs that would produce incorrect results
-            - Data shape assumptions (e.g. plain string vs locale map fields)
-            - Auth/security logic in webhook verification
-            - Rate limit error detection covering all error shapes
-            Do not review functions that require Contentful or OpenAI network calls.
-            Post your findings as a PR comment.
-          claude_args: "--max-turns 15"
+            Read lib/webhooks/verify-contentful-webhook-secret.ts and post a
+            one-paragraph PR comment summarising any correctness or security
+            issues you find.
+          claude_args: "--max-turns 5"
           show_full_output: true
           settings: |
             {
