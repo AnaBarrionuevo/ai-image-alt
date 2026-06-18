@@ -32,4 +32,4 @@ jobs:
             - Rate limit error detection covering all error shapes
             Do not review functions that require Contentful or OpenAI network calls.
             Post your findings as a PR comment.
-          claude_args: "--max-turns 5"
+          claude_args: "--max-turns 5"# trigger ci
