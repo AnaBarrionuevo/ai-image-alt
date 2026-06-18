@@ -25,7 +25,8 @@ export function getAssetDescription(asset: Asset): string | null {
 
   // CDA SDK with default locale resolution returns a plain string.
   if (typeof descriptionField === "string") {
-    return descriptionField.trim();
+    const trimmed = descriptionField.trim();
+    return trimmed.length > 0 ? trimmed : null;
   }
 
   // CDA SDK with locale:"*" returns a per-locale map { "en-US": "..." }.

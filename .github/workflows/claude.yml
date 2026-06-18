@@ -33,5 +33,10 @@ jobs:
             Do not review functions that require Contentful or OpenAI network calls.
             Post your findings as a PR comment.
           claude_args: "--max-turns 15"
-          allowed_tools: "Bash(gh pr comment *),Bash(gh pr view *),Bash(git diff *),Bash(git show *),Read"
           show_full_output: true
+          settings: |
+            {
+              "permissions": {
+                "allow": ["Bash(gh pr comment *)", "Bash(gh pr view *)", "Bash(git diff *)", "Bash(git show *)", "Read"]
+              }
+            }
